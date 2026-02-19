@@ -15,40 +15,35 @@ function CopyButton({ text }) {
       className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm"
     >
       {copied ? (
-        <>
-          <svg
-            className="w-4 h-4 text-green-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-          <span>Copied!</span>
-        </>
+        <svg
+          className="w-4 h-4 text-green-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
       ) : (
-        <>
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-            />
-          </svg>
-          <span>Copy JSON</span>
-        </>
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
       )}
+      <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
     </button>
   );
 }
@@ -74,9 +69,9 @@ export default function Results({ data }) {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'events', label: `Events (${data.events?.length || 0})` },
-    { id: 'tools', label: `Registration (${data.registration_tools?.length || 0})` },
-    { id: 'team', label: `Team (${data.team_contacts?.length || 0})` },
+    { id: 'events', label: 'Events (' + (data.events?.length || 0) + ')' },
+    { id: 'tools', label: 'Registration (' + (data.registration_tools?.length || 0) + ')' },
+    { id: 'team', label: 'Team (' + (data.team_contacts?.length || 0) + ')' },
     { id: 'json', label: 'Raw JSON' }
   ];
 
@@ -88,11 +83,12 @@ export default function Results({ data }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
+              className={
+                'px-4 py-2 rounded-lg text-sm font-medium transition-colors ' +
+                (activeTab === tab.id
                   ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700')
+              }
             >
               {tab.label}
             </button>
@@ -113,7 +109,7 @@ export default function Results({ data }) {
             <div>
               <label className="text-slate-500 text-sm">Website</label>
               
-                href={data.foundation?.website}
+                href={data.foundation?.website || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-400 hover:text-blue-300 block mt-1 break-all"
@@ -145,7 +141,9 @@ export default function Results({ data }) {
                     <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">
                       {evt.category}
                     </span>
-                    {evt.date && <span className="text-slate-400">{evt.date}</span>}
+                    {evt.date && (
+                      <span className="text-slate-400">{evt.date}</span>
+                    )}
                   </div>
                   {evt.location && (
                     <p className="text-slate-400 text-sm mt-2">{evt.location}</p>
@@ -178,11 +176,12 @@ export default function Results({ data }) {
                       <td className="py-3 pr-4 text-white">{tool.event_name}</td>
                       <td className="py-3 pr-4">
                         <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            tool.registration_platform === 'UNKNOWN'
+                          className={
+                            'px-2 py-1 rounded text-xs ' +
+                            (tool.registration_platform === 'UNKNOWN'
                               ? 'bg-slate-600 text-slate-300'
-                              : 'bg-green-500/20 text-green-300'
-                          }`}
+                              : 'bg-green-500/20 text-green-300')
+                          }
                         >
                           {tool.registration_platform}
                         </span>
