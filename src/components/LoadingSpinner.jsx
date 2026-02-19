@@ -21,7 +21,7 @@ export default function LoadingSpinner() {
             <div key={i} className="flex items-center space-x-3 text-slate-400">
               <div
                 className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                style={{ animationDelay: `${i * 200}ms` }}
+                style={{ animationDelay: (i * 200) + 'ms' }}
               ></div>
               <span>{step}</span>
             </div>
