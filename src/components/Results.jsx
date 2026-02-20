@@ -71,7 +71,7 @@ export default function Results({ data }) {
                 <div key={i} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
                   <span className="text-slate-300">{sf.name}</span>
                   
-                    href={sf.website}
+                   <a href={sf.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 text-sm"
@@ -271,4 +271,5 @@ export default function Results({ data }) {
     </div>
   );
 }
+
 
