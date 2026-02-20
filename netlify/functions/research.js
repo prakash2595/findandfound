@@ -1,13 +1,12 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-const TIMEOUT = 20000;
+const TIMEOUT = 15000;
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.5',
-  'Accept-Encoding': 'gzip, deflate, br',
   'Connection': 'keep-alive'
 };
 
@@ -19,27 +18,44 @@ const FOUNDATION_KEYWORDS = [
 
 const SPONSORED_KEYWORDS = [
   'sponsor', 'sponsored by', 'sponsorship', 'our sponsors', 'event sponsors',
-  'corporate sponsor', 'presenting sponsor', 'gold sponsor', 'silver sponsor',
-  'platinum sponsor', 'bronze sponsor', 'community partner', 'supported by',
-  'in partnership with', 'proud sponsor', 'sponsoring'
+  'corporate sponsor', 'presenting sponsor', 'community partner', 'supported by',
+  'in partnership with', 'proud sponsor'
 ];
 
 const EVENT_KEYWORDS = [
   'event', 'gala', 'golf', 'auction', 'dinner', 'luncheon',
   'fundraiser', 'benefit', 'walk', 'run', 'ball', 'celebration',
-  'awards', 'ceremony', 'concert', 'festival', 'tournament'
+  'awards', 'ceremony', 'concert', 'festival', 'tournament', 'annual'
 ];
 
 const REGISTRATION_PLATFORMS = [
   { name: 'Eventbrite', patterns: ['eventbrite.com', 'eventbrite.'] },
-  { name: 'GiveSmart', patterns: ['givesmart.com', 'e.givesmart'] },
-  { name: 'OneCause', patterns: ['onecause.com', 'e.onecause'] },
-  { name: 'Classy', patterns: ['classy.org', 'secure.classy'] },
-  { name: 'Active.com', patterns: ['active.com'] },
-  { name: 'Greater Giving', patterns: ['greatergiving.com'] },
-  { name: 'Blackbaud', patterns: ['blackbaud.com'] },
-  { name: 'Network for Good', patterns: ['networkforgood'] },
-  { name: 'Double the Donation', patterns: ['doublethedonation'] }
+  { name: 'GiveSmart', patterns: ['givesmart.com', 'e.givesmart', 'givesmart'] },
+  { name: 'OneCause', patterns: ['onecause.com', 'e.onecause', 'onecause'] },
+  { name: 'Classy', patterns: ['classy.org', 'secure.classy', 'classy'] },
+  { name: 'Greater Giving', patterns: ['greatergiving.com', 'greatergiving', 'auctiontracker'] },
+  { name: 'Blackbaud', patterns: ['blackbaud.com', 'blackbaud'] },
+  { name: 'Network for Good', patterns: ['networkforgood.com', 'networkforgood'] },
+  { name: 'Double the Donation', patterns: ['doublethedonation.com'] },
+  { name: 'Qgiv', patterns: ['qgiv.com', 'secure.qgiv'] },
+  { name: 'Handbid', patterns: ['handbid.com', 'handbid'] },
+  { name: 'BidPal', patterns: ['bidpal.com', 'bidpal'] },
+  { name: 'Auction Technology Group', patterns: ['atg.world', 'the-saleroom'] },
+  { name: 'CharityAuctionsToday', patterns: ['charityauctionstoday.com'] },
+  { name: 'Bloomerang', patterns: ['bloomerang.com', 'bloomerang'] },
+  { name: 'DonorPerfect', patterns: ['donorperfect.com', 'donorperfect'] },
+  { name: 'Fundly', patterns: ['fundly.com'] },
+  { name: 'GoFundMe Charity', patterns: ['gofundme.com/charity', 'charity.gofundme'] },
+  { name: 'JustGiving', patterns: ['justgiving.com'] },
+  { name: 'Rallybound', patterns: ['rallybound.com'] },
+  { name: 'RegFox', patterns: ['regfox.com'] },
+  { name: 'SignUpGenius', patterns: ['signupgenius.com'] },
+  { name: 'Splash', patterns: ['splashthat.com'] },
+  { name: 'Ticketleap', patterns: ['ticketleap.com'] },
+  { name: 'Eventcreate', patterns: ['eventcreate.com'] },
+  { name: 'Wild Apricot', patterns: ['wildapricot.org', 'wildapricot'] },
+  { name: 'MemberClicks', patterns: ['memberclicks.com'] },
+  { name: 'Active.com', patterns: ['active.com', 'activenetwork'] }
 ];
 
 const TEAM_TITLES = [
@@ -48,11 +64,24 @@ const TEAM_TITLES = [
   'database manager', 'director of philanthropy', 'philanthropy director',
   'major gifts officer', 'major gifts', 'foundation director', 'foundation president',
   'executive director', 'vp of development', 'vice president of development',
-  'gift officer', 'annual giving', 'planned giving', 'donor relations'
+  'gift officer', 'annual giving', 'planned giving', 'donor relations',
+  'special events', 'event manager', 'event director', 'gala chair'
+];
+
+const EVENT_PAGE_PATHS = [
+  '/events', '/event', '/calendar', '/upcoming-events', '/event-calendar',
+  '/whats-happening', '/happenings', '/activities', '/programs',
+  '/fundraising-events', '/special-events', '/community-events',
+  '/galas', '/gala', '/annual-events', '/signature-events'
+];
+
+const FOUNDATION_PAGE_PATHS = [
+  '/foundation', '/giving', '/donate', '/philanthropy', '/support',
+  '/ways-to-give', '/support-us', '/make-a-gift', '/get-involved'
 ];
 
 function normalizeUrl(url) {
-  url = url.trim().toLowerCase();
+  url = url.trim();
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = 'https://' + url;
   }
@@ -63,6 +92,15 @@ function getDomain(url) {
   try {
     const u = new URL(url);
     return u.hostname.replace('www.', '');
+  } catch {
+    return url;
+  }
+}
+
+function getBaseUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol + '//' + u.hostname;
   } catch {
     return url;
   }
@@ -89,261 +127,186 @@ async function fetchPage(url) {
   }
 }
 
-async function tryCommonFoundationUrls(baseUrl) {
+async function checkUrlExists(url) {
+  try {
+    const response = await axios.head(url, {
+      headers: HEADERS,
+      timeout: 5000,
+      maxRedirects: 3,
+      validateStatus: (status) => status < 400
+    });
+    return response.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+async function findEventPages(baseUrl) {
+  const eventPages = [];
+  const base = getBaseUrl(baseUrl);
+
+  console.log('Searching for event pages on:', base);
+
+  for (const path of EVENT_PAGE_PATHS) {
+    const url = base + path;
+    const exists = await checkUrlExists(url);
+    if (exists) {
+      console.log('Found event page:', url);
+      eventPages.push(url);
+    }
+  }
+
+  return eventPages;
+}
+
+async function findFoundationPages(baseUrl) {
+  const foundationPages = [];
+  const base = getBaseUrl(baseUrl);
   const domain = getDomain(baseUrl);
   const baseDomain = domain.split('.').slice(-2).join('.');
 
-  const possibleUrls = [
-    baseUrl + '/foundation',
-    baseUrl + '/giving',
-    baseUrl + '/donate',
-    baseUrl + '/philanthropy',
-    baseUrl + '/support',
-    baseUrl + '/ways-to-give',
+  console.log('Searching for foundation pages on:', base);
+
+  // Try paths on the main domain
+  for (const path of FOUNDATION_PAGE_PATHS) {
+    const url = base + path;
+    const exists = await checkUrlExists(url);
+    if (exists) {
+      console.log('Found foundation page:', url);
+      foundationPages.push(url);
+    }
+  }
+
+  // Try subdomain variations
+  const subdomainUrls = [
     'https://foundation.' + baseDomain,
     'https://giving.' + baseDomain,
-    'https://' + baseDomain.replace('.org', 'foundation.org').replace('.com', 'foundation.org'),
-    'https://' + domain.replace('www.', '') + '/foundation'
+    'https://donate.' + baseDomain,
+    'https://philanthropy.' + baseDomain
   ];
 
-  for (const url of possibleUrls) {
-    try {
-      const response = await axios.head(url, {
-        headers: HEADERS,
-        timeout: 5000,
-        maxRedirects: 3,
-        validateStatus: (status) => status < 400
-      });
-      if (response.status === 200) {
-        return url;
-      }
-    } catch {
-      continue;
+  for (const url of subdomainUrls) {
+    const exists = await checkUrlExists(url);
+    if (exists) {
+      console.log('Found foundation subdomain:', url);
+      foundationPages.push(url);
+    }
+  }
+
+  return foundationPages;
+}
+
+function detectPlatformFromUrl(url) {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  
+  for (const platform of REGISTRATION_PLATFORMS) {
+    if (platform.patterns.some(pattern => lower.includes(pattern))) {
+      return platform.name;
     }
   }
   return null;
 }
 
-async function findFoundation(baseUrl, $, html) {
-  const foundation = { 
-    name: null, 
-    website: null, 
-    mission: null,
-    relationship_type: 'owned'  // 'owned', 'associated', or 'sponsored'
-  };
-  const foundationLinks = [];
+function detectPlatformFromPage($, url) {
+  // Check the URL first
+  const urlPlatform = detectPlatformFromUrl(url);
+  if (urlPlatform) return urlPlatform;
 
-  // Check page title first
-  const pageTitle = $('title').text().toLowerCase();
-  const isFoundationSite = FOUNDATION_KEYWORDS.some(k => pageTitle.includes(k));
-
-  if (isFoundationSite) {
-    foundation.name = $('title').text().split('|')[0].split('-')[0].split(':')[0].trim();
-    foundation.website = baseUrl;
-    foundation.relationship_type = 'owned';
-  }
-
-  // Search for foundation links
+  // Check all links on the page
+  const allLinks = [];
   $('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    const text = $(el).text().toLowerCase().trim();
-    const hrefLower = href.toLowerCase();
-
-    if (FOUNDATION_KEYWORDS.some(k => hrefLower.includes(k) || text.includes(k))) {
-      try {
-        let fullUrl = href;
-        if (href.startsWith('/')) {
-          fullUrl = new URL(href, baseUrl).href;
-        } else if (!href.startsWith('http')) {
-          fullUrl = new URL(href, baseUrl).href;
-        }
-
-        if (!fullUrl.includes('javascript:') && !fullUrl.includes('mailto:')) {
-          foundationLinks.push({
-            url: fullUrl,
-            text: $(el).text().trim(),
-            score: FOUNDATION_KEYWORDS.filter(k => hrefLower.includes(k) || text.includes(k)).length
-          });
-        }
-      } catch (e) {
-        // Invalid URL, skip
-      }
-    }
+    allLinks.push($(el).attr('href') || '');
   });
 
-  // Sort by score and pick best match
-  foundationLinks.sort((a, b) => b.score - a.score);
+  // Check iframes (embedded registration forms)
+  $('iframe[src]').each((_, el) => {
+    allLinks.push($(el).attr('src') || '');
+  });
 
-  if (foundationLinks.length > 0 && !foundation.website) {
-    const best = foundationLinks[0];
-    foundation.website = best.url;
-    foundation.name = best.text || 'Foundation';
-    
-    // Determine relationship type
-    const baseDomain = getDomain(baseUrl);
-    const foundationDomain = getDomain(best.url);
-    if (foundationDomain.includes(baseDomain) || baseDomain.includes(foundationDomain)) {
-      foundation.relationship_type = 'owned';
-    } else {
-      foundation.relationship_type = 'associated';
+  // Check form actions
+  $('form[action]').each((_, el) => {
+    allLinks.push($(el).attr('action') || '');
+  });
+
+  // Check scripts for embedded widgets
+  $('script[src]').each((_, el) => {
+    allLinks.push($(el).attr('src') || '');
+  });
+
+  for (const link of allLinks) {
+    const platform = detectPlatformFromUrl(link);
+    if (platform) return platform;
+  }
+
+  // Check page content for platform mentions
+  const pageText = $('body').text().toLowerCase();
+  for (const platform of REGISTRATION_PLATFORMS) {
+    if (pageText.includes(platform.name.toLowerCase())) {
+      return platform.name;
     }
   }
 
-  // Try common foundation URL patterns if nothing found
-  if (!foundation.website) {
-    const commonUrl = await tryCommonFoundationUrls(baseUrl);
-    if (commonUrl) {
-      foundation.website = commonUrl;
-      foundation.name = getOrgName(baseUrl) + ' Foundation';
-      foundation.relationship_type = 'owned';
-    }
-  }
-
-  // Get mission from meta tags
-  const metaDesc = $('meta[name="description"]').attr('content') ||
-                   $('meta[property="og:description"]').attr('content') || '';
-  if (metaDesc.length > 20) {
-    foundation.mission = metaDesc.slice(0, 500);
-  }
-
-  // If still no mission, look for about/mission text
-  if (!foundation.mission) {
-    $('p, .mission, .about, [class*="mission"], [class*="about"], [class*="description"]').each((_, el) => {
-      const text = $(el).text().trim();
-      if (text.length > 50 && text.length < 600) {
-        const lowerText = text.toLowerCase();
-        if (lowerText.includes('mission') || lowerText.includes('dedicated') ||
-            lowerText.includes('committed') || lowerText.includes('purpose') ||
-            lowerText.includes('vision') || lowerText.includes('support')) {
-          foundation.mission = text.slice(0, 500);
-          return false;
-        }
-      }
-    });
-  }
-
-  return foundation;
+  return null;
 }
 
-async function findSponsoredFoundations(baseUrl, $, orgName) {
-  const sponsoredFoundations = [];
-  const seen = new Set();
-
-  // Look for sponsorship mentions on the page
-  $('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    const text = $(el).text().toLowerCase().trim();
-    const parentText = $(el).parent().text().toLowerCase();
-    const grandparentText = $(el).parent().parent().text().toLowerCase();
-    
-    const contextText = parentText + ' ' + grandparentText;
-    
-    // Check if this link is in a sponsorship context
-    const isSponsorContext = SPONSORED_KEYWORDS.some(k => contextText.includes(k));
-    const isFoundationLink = FOUNDATION_KEYWORDS.some(k => href.toLowerCase().includes(k) || text.includes(k));
-    
-    if ((isSponsorContext || isFoundationLink) && href.startsWith('http')) {
-      const domain = getDomain(href);
-      const baseDomain = getDomain(baseUrl);
-      
-      // Skip if it's the same domain (internal link)
-      if (domain !== baseDomain && !seen.has(domain)) {
-        seen.add(domain);
-        sponsoredFoundations.push({
-          url: href,
-          name: $(el).text().trim() || domain,
-          context: isSponsorContext ? 'sponsor' : 'foundation_link'
-        });
-      }
-    }
-  });
-
-  // Look for sponsor sections
-  $('[class*="sponsor"], [id*="sponsor"], [class*="partner"], [id*="partner"]').each((_, section) => {
-    $(section).find('a[href]').each((_, el) => {
-      const href = $(el).attr('href') || '';
-      if (href.startsWith('http')) {
-        const domain = getDomain(href);
-        const baseDomain = getDomain(baseUrl);
-        
-        if (domain !== baseDomain && !seen.has(domain)) {
-          seen.add(domain);
-          sponsoredFoundations.push({
-            url: href,
-            name: $(el).text().trim() || $(el).find('img').attr('alt') || domain,
-            context: 'sponsor_section'
-          });
-        }
-      }
-    });
-  });
-
-  // Look for community involvement / giving back pages
-  const communityLinks = [];
-  $('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    const text = $(el).text().toLowerCase();
-    if (text.includes('community') || text.includes('giving back') || 
-        text.includes('social responsibility') || text.includes('csr') ||
-        href.includes('community') || href.includes('giving-back')) {
-      try {
-        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-        communityLinks.push(fullUrl);
-      } catch {}
-    }
-  });
-
-  // Fetch community pages to find sponsored foundations
-  for (const link of communityLinks.slice(0, 3)) {
-    try {
-      const { html } = await fetchPage(link);
-      if (html) {
-        const $page = cheerio.load(html);
-        
-        $page('a[href]').each((_, el) => {
-          const href = $page(el).attr('href') || '';
-          const text = $page(el).text().toLowerCase();
-          const isFoundation = FOUNDATION_KEYWORDS.some(k => href.toLowerCase().includes(k) || text.includes(k));
-          
-          if (isFoundation && href.startsWith('http')) {
-            const domain = getDomain(href);
-            const baseDomain = getDomain(baseUrl);
-            
-            if (domain !== baseDomain && !seen.has(domain)) {
-              seen.add(domain);
-              sponsoredFoundations.push({
-                url: href,
-                name: $page(el).text().trim() || domain,
-                context: 'community_page'
-              });
-            }
-          }
-        });
-      }
-    } catch {}
-  }
-
-  return sponsoredFoundations;
-}
-
-async function getFoundationDetails(foundationUrl) {
-  const { html } = await fetchPage(foundationUrl);
+async function crawlEventPage(eventUrl) {
+  console.log('Crawling event page:', eventUrl);
+  
+  const { html } = await fetchPage(eventUrl);
   if (!html) return null;
 
   const $ = cheerio.load(html);
   
-  const name = $('title').text().split('|')[0].split('-')[0].split(':')[0].trim();
-  const mission = $('meta[name="description"]').attr('content') ||
-                  $('meta[property="og:description"]').attr('content') || null;
-
-  return {
-    name: name || getDomain(foundationUrl),
-    website: foundationUrl,
-    mission: mission ? mission.slice(0, 500) : null
+  const result = {
+    url: eventUrl,
+    platform: null,
+    registration_link: null,
+    sponsorship_link: null
   };
+
+  // Detect platform from the page
+  result.platform = detectPlatformFromPage($, eventUrl);
+
+  // Find registration links
+  const regKeywords = ['register', 'ticket', 'sign up', 'rsvp', 'buy ticket', 'get ticket', 'attend', 'join us'];
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const text = $(el).text().toLowerCase();
+    
+    if (regKeywords.some(k => text.includes(k) || href.toLowerCase().includes(k))) {
+      if (!result.registration_link && href.startsWith('http')) {
+        result.registration_link = href;
+        const platform = detectPlatformFromUrl(href);
+        if (platform) result.platform = platform;
+      }
+    }
+
+    if (text.includes('sponsor') && href.startsWith('http')) {
+      result.sponsorship_link = href;
+    }
+  });
+
+  // Check for buttons
+  $('button, [class*="button"], [class*="btn"]').each((_, el) => {
+    const text = $(el).text().toLowerCase();
+    const onclick = $(el).attr('onclick') || '';
+    const dataHref = $(el).attr('data-href') || '';
+    
+    if (regKeywords.some(k => text.includes(k))) {
+      const link = dataHref || onclick.match(/https?:\/\/[^\s'"]+/)?.[0];
+      if (link && !result.registration_link) {
+        result.registration_link = link;
+        const platform = detectPlatformFromUrl(link);
+        if (platform) result.platform = platform;
+      }
+    }
+  });
+
+  return result;
 }
 
-function extractEvents($, baseUrl) {
+async function extractEventsFromPage($, baseUrl) {
   const events = [];
   const seen = new Set();
   const dateRegex = /(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}\/\d{1,2}\/\d{2,4}/gi;
@@ -353,7 +316,9 @@ function extractEvents($, baseUrl) {
     '[class*="calendar"]', '[id*="calendar"]',
     'article', '.card', '[class*="card"]',
     '.listing', '[class*="listing"]',
-    '.upcoming', '[class*="upcoming"]'
+    '.upcoming', '[class*="upcoming"]',
+    '[class*="program"]', '[class*="gala"]',
+    'li', '.item'
   ];
 
   eventSelectors.forEach(selector => {
@@ -362,14 +327,24 @@ function extractEvents($, baseUrl) {
       const text = $el.text();
       const textLower = text.toLowerCase();
 
-      if (!EVENT_KEYWORDS.some(k => textLower.includes(k))) return;
+      // Check if this contains event-related content
+      const hasEventKeyword = EVENT_KEYWORDS.some(k => textLower.includes(k));
+      const hasDate = dateRegex.test(text);
+      
+      if (!hasEventKeyword && !hasDate) return;
 
-      let name = $el.find('h1, h2, h3, h4, .title, [class*="title"], [class*="name"]').first().text().trim();
+      let name = $el.find('h1, h2, h3, h4, h5, .title, [class*="title"], [class*="name"], [class*="heading"]').first().text().trim();
       if (!name) {
         name = $el.find('a').first().text().trim();
       }
-      if (!name || name.length > 200 || name.length < 3 || seen.has(name.toLowerCase())) return;
-      seen.add(name.toLowerCase());
+      if (!name || name.length > 200 || name.length < 3) return;
+      
+      const nameLower = name.toLowerCase();
+      if (seen.has(nameLower)) return;
+      seen.add(nameLower);
+
+      // Skip navigation/menu items
+      if (name.toLowerCase() === 'events' || name.toLowerCase() === 'calendar') return;
 
       const dateMatches = text.match(dateRegex);
       const date = dateMatches ? dateMatches[0] : null;
@@ -378,13 +353,14 @@ function extractEvents($, baseUrl) {
       if (textLower.includes('gala')) category = 'Gala';
       else if (textLower.includes('golf')) category = 'Golf Tournament';
       else if (textLower.includes('auction')) category = 'Auction';
-      else if (textLower.includes('walk') || textLower.includes('run') || textLower.includes('marathon')) category = 'Walk/Run';
+      else if (textLower.includes('walk') || textLower.includes('run') || textLower.includes('marathon') || textLower.includes('5k')) category = 'Walk/Run';
       else if (textLower.includes('dinner') || textLower.includes('luncheon')) category = 'Dinner/Luncheon';
       else if (textLower.includes('concert')) category = 'Concert';
       else if (textLower.includes('festival')) category = 'Festival';
+      else if (textLower.includes('ball')) category = 'Ball';
 
       let location = null;
-      $el.find('[class*="location"], [class*="venue"], [class*="place"], address').each((_, loc) => {
+      $el.find('[class*="location"], [class*="venue"], [class*="place"], [class*="address"], address').each((_, loc) => {
         const locText = $(loc).text().trim();
         if (locText.length > 3 && locText.length < 150) {
           location = locText;
@@ -408,89 +384,115 @@ function extractEvents($, baseUrl) {
         category,
         date,
         location,
-        link
+        link,
+        registration_platform: null,
+        registration_link: null,
+        sponsorship_link: null
       });
     });
   });
 
-  return events.slice(0, 20);
+  return events;
 }
 
-function extractRegistrationTools(events, $, baseUrl) {
-  const tools = [];
-
-  const detectPlatform = (url) => {
-    if (!url) return 'UNKNOWN';
-    const lower = url.toLowerCase();
-    for (const p of REGISTRATION_PLATFORMS) {
-      if (p.patterns.some(pat => lower.includes(pat))) return p.name;
-    }
-    if (lower.includes('register') || lower.includes('signup') || lower.includes('tickets')) {
-      return 'Custom Form';
-    }
-    return 'UNKNOWN';
+async function findFoundation(baseUrl, $) {
+  const foundation = {
+    name: null,
+    website: null,
+    mission: null,
+    relationship_type: 'owned'
   };
 
-  // Find all registration/sponsorship links on page
-  const regLinks = [];
-  const sponsorLinks = [];
+  // Check page title
+  const pageTitle = $('title').text().toLowerCase();
+  const isFoundationSite = FOUNDATION_KEYWORDS.some(k => pageTitle.includes(k));
 
+  if (isFoundationSite) {
+    foundation.name = $('title').text().split('|')[0].split('-')[0].split(':')[0].trim();
+    foundation.website = baseUrl;
+    foundation.relationship_type = 'owned';
+  }
+
+  // Search for foundation links on the page
+  const foundationLinks = [];
   $('a[href]').each((_, el) => {
     const href = $(el).attr('href') || '';
-    const text = $(el).text().toLowerCase();
+    const text = $(el).text().toLowerCase().trim();
+    const hrefLower = href.toLowerCase();
 
-    if (text.includes('register') || text.includes('ticket') || text.includes('sign up') || text.includes('rsvp')) {
+    if (FOUNDATION_KEYWORDS.some(k => hrefLower.includes(k) || text.includes(k))) {
       try {
-        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-        regLinks.push({ url: fullUrl, text: $(el).text().trim() });
-      } catch {}
-    }
+        let fullUrl = href;
+        if (href.startsWith('/')) {
+          fullUrl = new URL(href, baseUrl).href;
+        } else if (!href.startsWith('http')) {
+          fullUrl = new URL(href, baseUrl).href;
+        }
 
-    if (text.includes('sponsor')) {
-      try {
-        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-        sponsorLinks.push({ url: fullUrl, text: $(el).text().trim() });
+        if (!fullUrl.includes('javascript:') && !fullUrl.includes('mailto:') && !fullUrl.includes('#')) {
+          foundationLinks.push({
+            url: fullUrl,
+            text: $(el).text().trim(),
+            score: FOUNDATION_KEYWORDS.filter(k => hrefLower.includes(k) || text.includes(k)).length
+          });
+        }
       } catch {}
     }
   });
 
-  for (const evt of events) {
-    const tool = {
-      event_name: evt.name,
-      registration_platform: detectPlatform(evt.link),
-      registration_link: evt.link,
-      sponsorship_link: null
-    };
+  foundationLinks.sort((a, b) => b.score - a.score);
 
-    // Try to match registration links to events
-    for (const reg of regLinks) {
-      const evtWords = evt.name.toLowerCase().split(' ').filter(w => w.length > 3);
-      if (evtWords.some(w => reg.text.toLowerCase().includes(w))) {
-        tool.registration_link = reg.url;
-        tool.registration_platform = detectPlatform(reg.url);
-        break;
-      }
+  if (foundationLinks.length > 0 && !foundation.website) {
+    const best = foundationLinks[0];
+    foundation.website = best.url;
+    foundation.name = best.text || 'Foundation';
+
+    const baseDomain = getDomain(baseUrl);
+    const foundationDomain = getDomain(best.url);
+    if (foundationDomain.includes(baseDomain) || baseDomain.includes(foundationDomain.split('.')[0])) {
+      foundation.relationship_type = 'owned';
+    } else {
+      foundation.relationship_type = 'associated';
     }
-
-    // Try to match sponsorship links
-    for (const sp of sponsorLinks) {
-      const evtWords = evt.name.toLowerCase().split(' ').filter(w => w.length > 3);
-      if (evtWords.some(w => sp.text.toLowerCase().includes(w))) {
-        tool.sponsorship_link = sp.url;
-        break;
-      }
-    }
-
-    // If no specific match, use first available
-    if (!tool.registration_link && regLinks.length > 0) {
-      tool.registration_link = regLinks[0].url;
-      tool.registration_platform = detectPlatform(regLinks[0].url);
-    }
-
-    tools.push(tool);
   }
 
-  return tools;
+  // Get mission
+  const metaDesc = $('meta[name="description"]').attr('content') ||
+                   $('meta[property="og:description"]').attr('content') || '';
+  if (metaDesc.length > 20) {
+    foundation.mission = metaDesc.slice(0, 500);
+  }
+
+  return foundation;
+}
+
+async function findSponsoredFoundations(baseUrl, $) {
+  const sponsoredFoundations = [];
+  const seen = new Set();
+
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const parentText = $(el).parent().text().toLowerCase() + ' ' + $(el).parent().parent().text().toLowerCase();
+
+    const isSponsorContext = SPONSORED_KEYWORDS.some(k => parentText.includes(k));
+    const isFoundationLink = FOUNDATION_KEYWORDS.some(k => href.toLowerCase().includes(k));
+
+    if ((isSponsorContext || isFoundationLink) && href.startsWith('http')) {
+      const domain = getDomain(href);
+      const baseDomain = getDomain(baseUrl);
+
+      if (domain !== baseDomain && !seen.has(domain)) {
+        seen.add(domain);
+        sponsoredFoundations.push({
+          url: href,
+          name: $(el).text().trim() || domain,
+          context: isSponsorContext ? 'sponsor' : 'foundation_link'
+        });
+      }
+    }
+  });
+
+  return sponsoredFoundations;
 }
 
 function extractTeamContacts($) {
@@ -535,13 +537,6 @@ function extractTeamContacts($) {
       });
 
       let title = matchedTitle.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      $el.find('.title, [class*="title"], .position, [class*="position"], .role, [class*="role"]').each((_, t) => {
-        const titleText = $(t).text().trim();
-        if (titleText.length > 3 && titleText.length < 100) {
-          title = titleText;
-          return false;
-        }
-      });
 
       contacts.push({
         name: name.slice(0, 100),
@@ -598,139 +593,218 @@ export async function handler(event) {
       return {
         statusCode: 502,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to fetch the provided URL. The site may be blocking requests or unavailable.' })
+        body: JSON.stringify({ error: 'Failed to fetch the provided URL' })
       };
     }
 
     const $ = cheerio.load(html);
 
-    // Find foundation info
-    let foundation = await findFoundation(finalUrl, $, html);
-    let targetUrl = finalUrl;
-    let $target = $;
-    let sponsoredFoundations = [];
+    // Step 1: Find foundation
+    let foundation = await findFoundation(finalUrl, $);
+    let foundationUrl = finalUrl;
+    let $foundation = $;
 
-    // If foundation website found and different from original, fetch it
+    // Try to find foundation pages if not found
+    if (!foundation.website) {
+      const foundationPages = await findFoundationPages(finalUrl);
+      if (foundationPages.length > 0) {
+        foundation.website = foundationPages[0];
+        foundation.name = orgName + ' Foundation';
+        foundation.relationship_type = 'owned';
+      }
+    }
+
+    // Fetch foundation page if found
     if (foundation.website && foundation.website !== finalUrl) {
-      console.log('Found foundation URL:', foundation.website);
+      console.log('Fetching foundation page:', foundation.website);
       const { html: foundationHtml } = await fetchPage(foundation.website);
       if (foundationHtml) {
-        $target = cheerio.load(foundationHtml);
-        targetUrl = foundation.website;
+        $foundation = cheerio.load(foundationHtml);
+        foundationUrl = foundation.website;
 
-        // Update foundation info from foundation page
-        const newTitle = $target('title').text();
-        if (newTitle && !foundation.name) {
-          foundation.name = newTitle.split('|')[0].split('-')[0].trim();
+        const newTitle = $foundation('title').text();
+        if (newTitle) {
+          foundation.name = newTitle.split('|')[0].split('-')[0].split(':')[0].trim();
         }
 
-        const newMission = $target('meta[name="description"]').attr('content') ||
-                          $target('meta[property="og:description"]').attr('content');
+        const newMission = $foundation('meta[name="description"]').attr('content') ||
+                          $foundation('meta[property="og:description"]').attr('content');
         if (newMission && newMission.length > 20) {
           foundation.mission = newMission.slice(0, 500);
         }
       }
     }
 
-    // If still no foundation found, try common URL patterns
-    if (!foundation.name && !foundation.website) {
-      const commonUrl = await tryCommonFoundationUrls(url);
-      if (commonUrl) {
-        const { html: commonHtml } = await fetchPage(commonUrl);
-        if (commonHtml) {
-          const $common = cheerio.load(commonHtml);
-          foundation.website = commonUrl;
-          foundation.name = $common('title').text().split('|')[0].split('-')[0].trim() ||
-                           orgName + ' Foundation';
-          foundation.mission = $common('meta[name="description"]').attr('content')?.slice(0, 500);
-          foundation.relationship_type = 'owned';
-          $target = $common;
-          targetUrl = commonUrl;
-        }
+    // Step 2: Find events - search multiple sources
+    let allEvents = [];
+    const eventPagesSearched = [];
+
+    // Search main page for events
+    const mainPageEvents = await extractEventsFromPage($, finalUrl);
+    allEvents.push(...mainPageEvents);
+    console.log('Events from main page:', mainPageEvents.length);
+
+    // Search foundation page for events
+    if ($foundation !== $) {
+      const foundationEvents = await extractEventsFromPage($foundation, foundationUrl);
+      allEvents.push(...foundationEvents);
+      console.log('Events from foundation page:', foundationEvents.length);
+    }
+
+    // Search dedicated event pages
+    const eventPages = await findEventPages(foundationUrl || finalUrl);
+    for (const eventPage of eventPages.slice(0, 3)) {
+      eventPagesSearched.push(eventPage);
+      const { html: eventHtml } = await fetchPage(eventPage);
+      if (eventHtml) {
+        const $events = cheerio.load(eventHtml);
+        const pageEvents = await extractEventsFromPage($events, eventPage);
+        allEvents.push(...pageEvents);
+        console.log('Events from', eventPage, ':', pageEvents.length);
       }
     }
 
-    // If STILL no foundation found, search for sponsored foundations
-    if (!foundation.name && !foundation.website) {
-      console.log('No direct foundation found, searching for sponsored foundations...');
-      
-      sponsoredFoundations = await findSponsoredFoundations(finalUrl, $, orgName);
-      
-      if (sponsoredFoundations.length > 0) {
-        console.log('Found sponsored foundations:', sponsoredFoundations.length);
-        
-        // Get details for the first/primary sponsored foundation
-        const primarySponsored = sponsoredFoundations[0];
-        const details = await getFoundationDetails(primarySponsored.url);
-        
-        if (details) {
-          foundation = {
-            name: details.name,
-            website: details.website,
-            mission: details.mission,
-            relationship_type: 'sponsored'
-          };
-          
-          // Fetch the sponsored foundation page for events/contacts
-          const { html: sponsoredHtml } = await fetchPage(primarySponsored.url);
-          if (sponsoredHtml) {
-            $target = cheerio.load(sponsoredHtml);
-            targetUrl = primarySponsored.url;
+    // Also try event pages on main domain if foundation is different
+    if (foundation.website && getDomain(foundation.website) !== getDomain(finalUrl)) {
+      const mainEventPages = await findEventPages(finalUrl);
+      for (const eventPage of mainEventPages.slice(0, 2)) {
+        if (!eventPagesSearched.includes(eventPage)) {
+          eventPagesSearched.push(eventPage);
+          const { html: eventHtml } = await fetchPage(eventPage);
+          if (eventHtml) {
+            const $events = cheerio.load(eventHtml);
+            const pageEvents = await extractEventsFromPage($events, eventPage);
+            allEvents.push(...pageEvents);
+            console.log('Events from main domain', eventPage, ':', pageEvents.length);
           }
         }
       }
     }
 
-    // Final check - if still nothing, return not found
+    // Deduplicate events
+    const seenEvents = new Set();
+    allEvents = allEvents.filter(evt => {
+      const key = evt.name.toLowerCase();
+      if (seenEvents.has(key)) return false;
+      seenEvents.add(key);
+      return true;
+    });
+
+    console.log('Total unique events found:', allEvents.length);
+
+    // Step 3: Crawl event pages to find registration tools
+    const eventsWithTools = [];
+    for (const evt of allEvents.slice(0, 10)) {
+      if (evt.link) {
+        console.log('Crawling event:', evt.name);
+        const eventDetails = await crawlEventPage(evt.link);
+        if (eventDetails) {
+          evt.registration_platform = eventDetails.platform || 'UNKNOWN';
+          evt.registration_link = eventDetails.registration_link || evt.link;
+          evt.sponsorship_link = eventDetails.sponsorship_link;
+        } else {
+          evt.registration_platform = 'UNKNOWN';
+          evt.registration_link = evt.link;
+        }
+      } else {
+        evt.registration_platform = 'UNKNOWN';
+      }
+      eventsWithTools.push(evt);
+    }
+
+    // Add remaining events without crawling
+    for (const evt of allEvents.slice(10)) {
+      evt.registration_platform = evt.link ? detectPlatformFromUrl(evt.link) || 'UNKNOWN' : 'UNKNOWN';
+      evt.registration_link = evt.link;
+      eventsWithTools.push(evt);
+    }
+
+    // Step 4: If no foundation found, search for sponsored foundations
+    let sponsoredFoundations = [];
+    if (!foundation.name && !foundation.website) {
+      console.log('No foundation found, searching for sponsored foundations...');
+      sponsoredFoundations = await findSponsoredFoundations(finalUrl, $);
+
+      if (sponsoredFoundations.length > 0) {
+        const primary = sponsoredFoundations[0];
+        const { html: sponsoredHtml } = await fetchPage(primary.url);
+        if (sponsoredHtml) {
+          const $sponsored = cheerio.load(sponsoredHtml);
+          foundation = {
+            name: $sponsored('title').text().split('|')[0].split('-')[0].trim() || primary.name,
+            website: primary.url,
+            mission: $sponsored('meta[name="description"]').attr('content')?.slice(0, 500) || null,
+            relationship_type: 'sponsored'
+          };
+          $foundation = $sponsored;
+          foundationUrl = primary.url;
+        }
+      }
+    }
+
+    // Final check
     if (!foundation.name && !foundation.website) {
       return {
         statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({
           error: 'FOUNDATION_NOT_FOUND',
-          message: 'Could not identify a foundation associated with or sponsored by this organization. Try entering the foundation URL directly if you know it.',
+          message: 'Could not identify a foundation associated with this URL.',
           searched_url: url,
+          event_pages_checked: eventPagesSearched,
           suggestions: [
             'Try entering the foundation URL directly',
-            'Search for "[Organization Name] Foundation" in Google',
-            'Check if the organization has a "Community" or "Giving Back" page'
+            'Check if the organization has a separate foundation website'
           ]
         })
       };
     }
 
-    // Extract events, tools, and contacts
-    const events = extractEvents($target, targetUrl);
-    const registrationTools = extractRegistrationTools(events, $target, targetUrl);
-    const teamContacts = extractTeamContacts($target);
+    // Step 5: Extract team contacts
+    const teamContacts = extractTeamContacts($foundation);
 
-    // Format additional sponsored foundations (if any beyond the primary)
-    const additionalSponsored = sponsoredFoundations.slice(1, 6).map(sf => ({
-      name: sf.name,
-      website: sf.url,
-      context: sf.context
+    // Build registration tools array
+    const registrationTools = eventsWithTools.map(evt => ({
+      event_name: evt.name,
+      registration_platform: evt.registration_platform || 'UNKNOWN',
+      registration_link: evt.registration_link,
+      sponsorship_link: evt.sponsorship_link
     }));
 
-    // Build result
+    // Format events for output
+    const events = eventsWithTools.map(evt => ({
+      name: evt.name,
+      category: evt.category,
+      date: evt.date,
+      location: evt.location,
+      link: evt.link
+    }));
+
+    // Other sponsored foundations
+    const otherSponsored = sponsoredFoundations.slice(1, 6).map(sf => ({
+      name: sf.name,
+      website: sf.url
+    }));
+
     const result = {
       foundation: {
         name: foundation.name || 'Foundation',
         website: foundation.website || url,
-        mission: foundation.mission || null,
+        mission: foundation.mission,
         relationship_type: foundation.relationship_type || 'unknown'
       },
       events,
       registration_tools: registrationTools,
       team_contacts: teamContacts,
-      other_sponsored_foundations: additionalSponsored.length > 0 ? additionalSponsored : null,
+      other_sponsored_foundations: otherSponsored.length > 0 ? otherSponsored : null,
       meta: {
         source_url: url,
         organization_name: orgName,
-        foundation_url: targetUrl,
+        foundation_url: foundationUrl,
+        event_pages_searched: eventPagesSearched,
         scraped_at: new Date().toISOString(),
         events_found: events.length,
-        contacts_found: teamContacts.length,
-        relationship_type: foundation.relationship_type || 'unknown'
+        contacts_found: teamContacts.length
       }
     };
 
