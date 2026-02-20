@@ -10,10 +10,28 @@ export default function Results({ data }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const getRelationshipBadge = (type) => {
+    if (type === 'owned') {
+      return { text: 'Owned Foundation', color: 'bg-green-500/20 text-green-300 border-green-500/30' };
+    } else if (type === 'associated') {
+      return { text: 'Associated Foundation', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
+    } else if (type === 'sponsored') {
+      return { text: 'Sponsored Foundation', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
+    }
+    return { text: 'Foundation', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+  };
+
   const renderOverview = () => {
+    const badge = getRelationshipBadge(data.foundation?.relationship_type);
+    
     return (
       <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Foundation Information</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white">Foundation Information</h2>
+          <span className={'px-3 py-1 rounded-full text-sm border ' + badge.color}>
+            {badge.text}
+          </span>
+        </div>
         <div className="space-y-4">
           <div>
             <p className="text-slate-500 text-sm">Foundation Name</p>
@@ -22,7 +40,7 @@ export default function Results({ data }) {
           <div>
             <p className="text-slate-500 text-sm">Website</p>
             
-             <a href={data.foundation?.website || '#'}
+              href={data.foundation?.website || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 break-all"
@@ -36,7 +54,35 @@ export default function Results({ data }) {
               <p className="text-slate-300">{data.foundation.mission}</p>
             </div>
           )}
+          {data.foundation?.relationship_type === 'sponsored' && (
+            <div className="mt-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+              <p className="text-purple-300 text-sm">
+                ℹ️ This organization sponsors this foundation but does not own or directly operate it.
+              </p>
+            </div>
+          )}
         </div>
+
+        {data.other_sponsored_foundations && data.other_sponsored_foundations.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <h3 className="text-md font-semibold text-white mb-3">Other Sponsored Foundations</h3>
+            <div className="space-y-2">
+              {data.other_sponsored_foundations.map((sf, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                  <span className="text-slate-300">{sf.name}</span>
+                  
+                    href={sf.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 text-sm"
+                  >
+                    Visit →
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -59,6 +105,11 @@ export default function Results({ data }) {
                   {evt.date && <span className="text-slate-400">{evt.date}</span>}
                 </div>
                 {evt.location && <p className="text-slate-400 text-sm mt-2">{evt.location}</p>}
+                {evt.link && (
+                  <a href={evt.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm mt-2 inline-block">
+                    View Event →
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -220,4 +271,3 @@ export default function Results({ data }) {
     </div>
   );
 }
-
