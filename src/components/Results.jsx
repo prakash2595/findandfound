@@ -40,7 +40,7 @@ export default function Results({ data }) {
           <div>
             <p className="text-slate-500 text-sm">Website</p>
             
-              href={data.foundation?.website || '#'}
+             <a href={data.foundation?.website || '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 break-all"
@@ -271,3 +271,4 @@ export default function Results({ data }) {
     </div>
   );
 }
+
